@@ -13,7 +13,7 @@ const fs = require('fs');
 
 const { pool, query, initDb } = require('./lib/db');
 const authLib = require('./lib/auth');
-
+app.set('trust proxy', 1);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
