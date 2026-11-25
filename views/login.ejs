@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>登入 | MAX 俱樂部</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="auth-page">
+  <div class="auth-card">
+    <img src="/logo.png" alt="MAX 俱樂部" class="logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 80%22><text y=%2250%22 font-size=%2236%22 fill=%22%23C4B5FD%22>MAX 俱樂部</text></svg>'">
+    <h1>進入系統</h1>
+    <p class="hint">用手機號 + 密碼登入</p>
+
+    <form id="loginForm" onsubmit="return doLogin(event)">
+      <div class="field">
+        <label>手機號碼</label>
+        <input type="tel" name="phone" placeholder="09xxxxxxxx" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label>密碼</label>
+        <input type="password" name="password" placeholder="請輸入密碼" required autocomplete="current-password">
+      </div>
+      <div id="errorMsg" class="error" style="display:none;"></div>
+      <button type="submit" class="btn-primary btn-block">登入</button>
+    </form>
+
+    <div class="auth-links">
+      <a href="/register" class="link-big">建立帳號</a>
+    </div>
+  </div>
+
+  <script>
+    async function doLogin(e) {
+      e.preventDefault();
+      const form = e.target;
+      const btn = form.querySelector('button');
+      const err = document.getElementById('errorMsg');
+      btn.disabled = true;
+      err.style.display = 'none';
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: form.phone.value.trim(),
+            password: form.password.value
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || '登入失敗');
+        location.href = '/';
+      } catch (ex) {
+        err.textContent = ex.message;
+        err.style.display = 'block';
+        btn.disabled = false;
+      }
+      return false;
+    }
+  </script>
+</body>
+</html>

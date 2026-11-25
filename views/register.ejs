@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>建立帳號 | MAX 俱樂部</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="auth-page">
+  <div class="auth-card">
+    <img src="/logo.png" alt="MAX" class="logo" onerror="this.style.display='none'">
+    <h1>建立帳號</h1>
+    <p class="hint">老闆註冊 → 聯繫客服取得驗證碼 → 開通後即可登入</p>
+
+    <div id="step1">
+      <form id="regForm" onsubmit="return doRegister(event)">
+        <div class="field">
+          <label>姓名 / 暱稱</label>
+          <input type="text" name="name" required placeholder="怎麼稱呼你">
+        </div>
+        <div class="field">
+          <label>手機號碼</label>
+          <input type="tel" name="phone" required placeholder="09xxxxxxxx">
+        </div>
+        <div class="field">
+          <label>密碼（至少 6 位）</label>
+          <input type="password" name="password" required minlength="6" placeholder="設定密碼">
+        </div>
+        <div id="regError" class="error" style="display:none;"></div>
+        <button type="submit" class="btn-primary btn-block">送出註冊資料</button>
+      </form>
+    </div>
+
+    <div id="step2" style="display:none;">
+      <div class="success">資料已送出！請聯繫客服（管理員）取得驗證碼。</div>
+      <form id="verifyForm" onsubmit="return doVerify(event)">
+        <div class="field">
+          <label>手機號碼</label>
+          <input type="tel" name="phone" id="verifyPhone" required>
+        </div>
+        <div class="field">
+          <label>驗證碼（6 位）</label>
+          <input type="text" name="code" required placeholder="請輸入客服給的驗證碼" maxlength="6">
+        </div>
+        <div id="verError" class="error" style="display:none;"></div>
+        <button type="submit" class="btn-primary btn-block">完成驗證並開通</button>
+      </form>
+    </div>
+
+    <div class="auth-links" style="margin-top:20px;">
+      <a href="/login">已有帳號？去登入</a>
+    </div>
+  </div>
+
+  <script>
+    async function doRegister(e) {
+      e.preventDefault();
+      const form = e.target;
+      const err = document.getElementById('regError');
+      err.style.display = 'none';
+      try {
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: form.name.value.trim(),
+            phone: form.phone.value.trim(),
+            password: form.password.value
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || '註冊失敗');
+        document.getElementById('step1').style.display = 'none';
+        document.getElementById('step2').style.display = 'block';
+        document.getElementById('verifyPhone').value = form.phone.value.trim();
+      } catch (ex) {
+        err.textContent = ex.message;
+        err.style.display = 'block';
+      }
+      return false;
+    }
+
+    async function doVerify(e) {
+      e.preventDefault();
+      const form = e.target;
+      const err = document.getElementById('verError');
+      err.style.display = 'none';
+      try {
+        const res = await fetch('/api/verify-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: form.phone.value.trim(),
+            code: form.code.value.trim()
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || '驗證失敗');
+        alert('驗證成功！現在可以登入了');
+        location.href = '/login';
+      } catch (ex) {
+        err.textContent = ex.message;
+        err.style.display = 'block';
+      }
+      return false;
+    }
+  </script>
+</body>
+</html>

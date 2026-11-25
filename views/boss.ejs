@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>我的訂單 | MAX 俱樂部</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="/logo.png" class="logo-sm" onerror="this.style.display='none'">
+      <span>MAX 俱樂部</span>
+    </div>
+    <div class="role-badge">老闆</div>
+    <button class="btn-logout" onclick="logout()">登出</button>
+  </header>
+
+  <div class="container">
+    <button class="btn-primary btn-block" style="margin:16px 0;" onclick="showNewOrder()">＋ 下單</button>
+
+    <div id="newOrderBox" class="card" style="display:none;">
+      <h3 style="margin-bottom:12px;">新增訂單</h3>
+      <div class="field">
+        <label>金額 (NT$)</label>
+        <input type="number" id="amount" min="1" placeholder="例如 1800">
+      </div>
+      <div class="field">
+        <label>商品名稱</label>
+        <input type="text" id="product" placeholder="例如 過時套餐 / 夜班陪玩" value="代打">
+      </div>
+      <div class="field">
+        <label>約定時間（選填）</label>
+        <input type="datetime-local" id="scheduled">
+      </div>
+      <div class="field">
+        <label>備註</label>
+        <textarea id="note" rows="2" placeholder="想跟打手說的話"></textarea>
+      </div>
+      <button class="btn-primary btn-block" onclick="createOrder()">送出訂單</button>
+      <button class="btn-outline btn-block" style="margin-top:8px;" onclick="hideNewOrder()">取消</button>
+    </div>
+
+    <div class="section-title">我的訂單</div>
+    <div id="orderList"><div class="empty">載入中...</div></div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    function showNewOrder() { document.getElementById('newOrderBox').style.display = 'block'; }
+    function hideNewOrder() { document.getElementById('newOrderBox').style.display = 'none'; }
+
+    async function createOrder() {
+      const amount = parseInt(document.getElementById('amount').value, 10);
+      const product_name = document.getElementById('product').value.trim();
+      const scheduled = document.getElementById('scheduled').value;
+      const note = document.getElementById('note').value.trim();
+      if (!amount || amount < 1) return alert('請輸入正確金額');
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, product_name, scheduled_at: scheduled || null, note })
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data.error || '下單失敗');
+      hideNewOrder();
+      loadOrders();
+    }
+
+    async function loadOrders() {
+      const res = await fetch('/api/orders/my');
+      const data = await res.json();
+      const list = document.getElementById('orderList');
+      if (!data.orders || data.orders.length === 0) {
+        list.innerHTML = '<div class="empty">目前沒有訂單</div>';
+        return;
+      }
+      list.innerHTML = data.orders.map(o => {
+        const st = statusText(o.status);
+        return `<div class="card ${o.is_urgent ? 'urgent' : ''}">
+          <div class="card-header">
+            <div class="amount">NT$ ${o.amount.toLocaleString()}</div>
+            <span class="status status-${o.status}">${st}</span>
+          </div>
+          <div class="meta">${o.product_name || '代打'} · #${o.id}</div>
+          ${o.player_name ? `<div class="meta">打手：${o.player_name}</div>` : '<div class="meta">等待打手接單</div>'}
+          ${o.scheduled_at ? `<div class="meta">約定：${formatTime(o.scheduled_at)}</div>` : ''}
+          <div class="actions">
+            ${o.status === 'pending' || o.status === 'accepted' || o.status === 'in_room' ? `
+              <button class="btn-sm btn-outline" onclick="doAction(${o.id},'urge')">催單</button>
+              <button class="btn-sm btn-danger" onclick="doAction(${o.id},'cancel')">取消</button>
+            ` : ''}
+            ${o.status === 'completed' && !o.rating ? `
+              <button class="btn-sm btn-primary" onclick="rateOrder(${o.id})">評分</button>
+            ` : ''}
+            ${o.status === 'completed' ? `
+              <button class="btn-sm btn-outline" onclick="doAction(${o.id},'reorder')">再來一單</button>
+            ` : ''}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function statusText(s) {
+      const map = { pending: '待接單', accepted: '已接單', in_room: '已進房', completed: '已完成', cancelled: '已取消', timeout: '逾時' };
+      return map[s] || s;
+    }
+    function formatTime(t) {
+      if (!t) return '';
+      const d = new Date(t);
+      return d.toLocaleString('zh-TW', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    }
+
+    async function doAction(id, action) {
+      let reason = '';
+      if (action === 'cancel') reason = prompt('取消原因？') || '';
+      const res = await fetch(`/api/orders/${id}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, reason })
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data.error || '失敗');
+      if (action === 'reorder' && data.newOrderId) alert('已建立新訂單 #' + data.newOrderId);
+      loadOrders();
+    }
+
+    async function rateOrder(id) {
+      const rating = prompt('評分 1~5 星？');
+      if (!rating) return;
+      const comment = prompt('留言（選填）') || '';
+      await fetch(`/api/orders/${id}/rate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating: parseInt(rating,10), comment })
+      });
+      loadOrders();
+    }
+
+    loadOrders();
+    setInterval(loadOrders, 30000);
+  </script>
+</body>
+</html>
