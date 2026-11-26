@@ -22,8 +22,19 @@
       <div id="stats">載入中...</div>
     </div>
 
+    <div class="section-title">接單池（等待接單）</div>
+    <div id="orderPool" class="card"><div class="empty">載入中...</div></div>
+
     <div class="section-title">待驗證老闆</div>
     <div id="pendingList" class="card"><div class="empty">載入中...</div></div>
+
+    <div class="section-title">新增客服</div>
+    <div class="card">
+      <div class="field"><label>手機號</label><input type="tel" id="csPhone" placeholder="0912345678"></div>
+      <div class="field"><label>暱稱</label><input type="text" id="csName" placeholder="客服小美"></div>
+      <div class="field"><label>密碼（預設 123456）</label><input type="text" id="csPass" placeholder="123456"></div>
+      <button class="btn-primary btn-block" onclick="addCS()">新增客服</button>
+    </div>
 
     <div class="section-title">新增打手</div>
     <div class="card">
@@ -81,6 +92,23 @@
       loadPending();
     }
 
+    async function addCS() {
+      const phone = document.getElementById('csPhone').value.trim();
+      const name = document.getElementById('csName').value.trim();
+      const password = document.getElementById('csPass').value.trim() || '123456';
+      if (!phone) return alert('請填手機號');
+      const res = await fetch('/api/admin/add-cs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, name, password })
+      });
+      const d = await res.json();
+      if (!res.ok) return alert(d.error || '失敗');
+      alert('客服已新增');
+      document.getElementById('csPhone').value = '';
+      document.getElementById('csName').value = '';
+    }
+
     async function addPlayer() {
       const phone = document.getElementById('pPhone').value.trim();
       const name = document.getElementById('pName').value.trim();
@@ -117,8 +145,27 @@
       `).join('');
     }
 
+    async function loadOrderPool() {
+      const res = await fetch('/api/admin/order-pool');
+      const data = await res.json();
+      const el = document.getElementById('orderPool');
+      if (!data.orders?.length) {
+        el.innerHTML = '<div class="empty">目前沒有等待接單的訂單</div>';
+        return;
+      }
+      el.innerHTML = data.orders.map(o => `
+        <div style="padding:10px 0;border-bottom:1px solid var(--border);">
+          <div class="amount">NT$ ${Number(o.amount).toLocaleString()}</div>
+          <div>${o.product_name || '代打'} · 老闆：${o.boss_name || '-'}</div>
+          <div class="meta">#${o.id} · ${new Date(o.created_at).toLocaleString('zh-TW')}</div>
+          ${o.scheduled_at ? `<div class="meta">約定：${new Date(o.scheduled_at).toLocaleString('zh-TW')}</div>` : ''}
+        </div>
+      `).join('');
+    }
+
     loadStats();
     loadPending();
+    loadOrderPool();
     loadOrders();
     setInterval(() => { loadPending(); loadOrders(); }, 30000);
   </script>
