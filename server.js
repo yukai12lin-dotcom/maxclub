@@ -101,7 +101,7 @@ app.use(async (req, res, next) => {
       const r = await query('SELECT id, phone, name, role, status, avatar_url FROM users WHERE id = $1', [req.session.userId]);
       if (r.rows[0]) {
         res.locals.user = r.rows[0];
-        const map = { admin: '管理員', boss: '老闆', player: '打手' };
+        const map = { admin: '管理員', boss: '老闆', player: '打手', cs: '客服' };
         res.locals.roleLabel = map[r.rows[0].role] || '';
       }
     } catch (e) {}
@@ -113,6 +113,7 @@ app.use(async (req, res, next) => {
 app.get('/', requireLogin, (req, res) => {
   const role = req.session.role;
   if (role === 'admin') return res.redirect('/admin');
+  if (role === 'cs') return res.redirect('/cs');
   if (role === 'player') return res.redirect('/player');
   return res.redirect('/boss');
 });
@@ -573,3 +574,46 @@ async function start() {
 }
 
 start();
+
+// 接單池 API
+app.get('/api/admin/order-pool', requireLogin, requireRole('admin'), async (req, res) => {
+  try {
+    const r = await query(`
+      SELECT o.*, b.name as boss_name 
+      FROM orders o
+      LEFT JOIN users b ON o.boss_id = b.id
+      WHERE o.status = 'pending' AND o.player_id IS NULL
+      ORDER BY o.created_at DESC
+    `);
+    res.json({ orders: r.rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: '取得接單池失敗' });
+  }
+});
+
+// ===== 客服頁面 =====
+app.get('/cs', requireLogin, requireRole('cs', 'admin'), async (req, res) => {
+  res.render('cs', { title: '客服後台' });
+});
+
+// 管理員新增客服
+app.post('/api/admin/add-cs', requireLogin, requireRole('admin'), async (req, res) => {
+  try {
+    const { phone, name, password } = req.body;
+    if (!phone) return res.status(400).json({ error: '需要手機號' });
+    const pass = password || '123456';
+    const hash = await authLib.hashPassword(pass);
+    const plainEnc = authLib.encryptPlain(pass);
+    await query(
+      `INSERT INTO users (phone, password_hash, password_plain, name, role, status)
+       VALUES ($1, $2, $3, $4, 'cs', 'active')
+       ON CONFLICT (phone) DO UPDATE SET role = 'cs', status = 'active'`,
+      [phone, hash, plainEnc, name || phone]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: '新增客服失敗' });
+  }
+});
